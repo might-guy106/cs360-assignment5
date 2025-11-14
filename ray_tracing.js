@@ -1,23 +1,21 @@
-var gl;
-var canvas;
+let context;
+let renderCanvas;
+let geometryBuffer;
+let posAttr;
+let lightUniform;
+let modeUniform;
+let lightSlider;
+let lightPosition = [-5.0, 3.0, 5.0];
+let renderMode = 4;
 
-var sqBuf;
-var aPositionLocation;
-var uLightPosLocation;
-var uChoiceLocation;
-var LightSlider;
-
-var lightPos = [-5.0,3.0,5.0];
-var choice = 4;
-
-const vertexShaderCode = `#version 300 es
+const VERTEX_SRC = `#version 300 es
 in vec3 aPosition;
 
 void main() {
-    gl_Position =  vec4(aPosition,1.0);
+    gl_Position = vec4(aPosition, 1.0);
 }`;
 
-const fragShaderCode = `#version 300 es
+const FRAGMENT_SRC = `#version 300 es
 precision mediump float;
 
 uniform vec3 uLightPosition;
@@ -26,20 +24,19 @@ uniform int choice;
 out vec4 fragColor;
 
 struct Sphere {
-vec3 center;
-float radius;
-vec3 color;
-float shininess;
+    vec3 center;
+    float radius;
+    vec3 color;
+    float shininess;
 };
 
 struct Ray {
-vec3 origin;
-vec3 direction;
+    vec3 origin;
+    vec3 direction;
 };
 
 vec3 cameraPos = vec3(0.0, 0.0, 1.0);
 
-// Function to calculate the intersection of a ray with a sphere
 float intersectSphere(vec3 rayOrg, vec3 rayDir, Sphere sphere) {
     vec3 v = rayOrg - sphere.center;
     float a = dot(rayDir, rayDir);
@@ -48,243 +45,205 @@ float intersectSphere(vec3 rayOrg, vec3 rayDir, Sphere sphere) {
     float D = b * b - 4.0 * a * c;
 
     if (D < 0.0) {
-        return 0.0; // No intersection
-    } else {
-        float pt1 = (-b - sqrt(D)) / (2.0 * a);
-        float pt2 = (-b + sqrt(D)) / (2.0 * a);
-        return min(pt1, pt2);
+        return 0.0;
     }
+    
+    float pt1 = (-b - sqrt(D)) / (2.0 * a);
+    float pt2 = (-b + sqrt(D)) / (2.0 * a);
+    return min(pt1, pt2);
 }
 
-// Phong shading
 vec3 phongShading(vec3 normal, vec3 intPt, vec3 diffuseTerm, float AlphaSpecular) {
-  vec3 L = normalize(uLightPosition - intPt);
-  vec3 n = normalize(normal);
-  vec3 v = normalize(cameraPos - intPt);
-  vec3 r = normalize(reflect(-L,n));
+    vec3 L = normalize(uLightPosition - intPt);
+    vec3 n = normalize(normal);
+    vec3 v = normalize(cameraPos - intPt);
+    vec3 r = normalize(reflect(-L, n));
 
-  float uIntensity = 1.0;
-  float diffuse = uIntensity*max(dot(L,n),0.0);
-  float specular = uIntensity*pow(max(dot(v,r),0.0),AlphaSpecular);
-  float ambient = uIntensity*0.3;
+    float intensity = 1.0;
+    float diffuse = intensity * max(dot(L, n), 0.0);
+    float specular = intensity * pow(max(dot(v, r), 0.0), AlphaSpecular);
+    float ambient = intensity * 0.3;
 
-  vec3 finalColor = diffuse*(diffuseTerm)+ ambient*(diffuseTerm)+ specular*(vec3(1,1,1));
-
-  return finalColor;
+    return diffuse * diffuseTerm + ambient * diffuseTerm + specular * vec3(1.0, 1.0, 1.0);
 }
 
-// Phong shading without specular
 vec3 phongShadingNoSpec(vec3 normal, vec3 intPt, vec3 diffuseTerm) {
-  vec3 L = normalize(uLightPosition - intPt);
-  vec3 n = normalize(normal);
-  vec3 v = normalize(cameraPos - intPt);
-  vec3 r = normalize(reflect(-L,n));
+    vec3 L = normalize(uLightPosition - intPt);
+    vec3 n = normalize(normal);
 
-  float uIntensity = 1.0;
-  float diffuse = uIntensity*max(dot(L,n),0.0);
-  float ambient = uIntensity*0.3;
+    float intensity = 1.0;
+    float diffuse = intensity * max(dot(L, n), 0.0);
+    float ambient = intensity * 0.3;
 
-  vec3 finalColor = diffuse*(diffuseTerm)+ ambient*(diffuseTerm);
-
-  return finalColor;
+    return diffuse * diffuseTerm + ambient * diffuseTerm;
 }
 
 void main() {
     Sphere spheres[7];
     spheres[0] = Sphere(vec3(0.15, -0.3, 0.0), 0.2, vec3(0.0, 0.55, 0.32), 12.0);
-    spheres[1] = Sphere(vec3(-0.2, -0.35,0.1), 0.2,vec3(0.0, 0.78, 0.0), 10.0);
-    spheres[2] = Sphere(vec3(0.3,  0.04, 0.0), 0.2, vec3(0.0, 0.6, 0.6), 20.0);
+    spheres[1] = Sphere(vec3(-0.2, -0.35, 0.1), 0.2, vec3(0.0, 0.78, 0.0), 10.0);
+    spheres[2] = Sphere(vec3(0.3, 0.04, 0.0), 0.2, vec3(0.0, 0.6, 0.6), 20.0);
     spheres[3] = Sphere(vec3(0.15, 0.38, -0.2), 0.22, vec3(0.0, 0.44, 0.73), 15.0);
     spheres[4] = Sphere(vec3(-0.25, 0.7, -0.7), 0.28, vec3(0.0, 0.255, 0.77), 25.0);
     spheres[5] = Sphere(vec3(-0.65, 0.45, -0.9), 0.28, vec3(0.3, 0.15, 0.6), 17.0);
     spheres[6] = Sphere(vec3(-0.45, 0.08, -1.5), 0.4, vec3(0.46, 0.13, 0.46), 14.0);
 
     Ray ray;
-    // create the ray for current frag
     ray.origin = cameraPos;
-
-    // direction is through each screen fragment in negative z direction
-    vec2 screenPos = gl_FragCoord.xy/vec2(600.0, 600.0);
+    vec2 screenPos = gl_FragCoord.xy / vec2(600.0, 600.0);
     ray.direction = normalize(vec3(screenPos * 2.0 - 1.0, -1.0));
 
-    float leastT = 1e8; 
+    float leastT = 1e8;
     int closestSph = -1;
 
     for (int i = 0; i < 7; i++) {
         float t = intersectSphere(ray.origin, ray.direction, spheres[i]);
-        if (t > 0.0  && t < leastT) {
-            // The intersection is closer
+        if (t > 0.0 && t < leastT) {
             leastT = t;
             closestSph = i;
         }
     }
 
-    if(closestSph == -1)
-        fragColor = vec4(0.0,0.0,0.0,1.0);  
-    else
-    {
-        // Calculate intersection point
+    if (closestSph == -1) {
+        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    } else {
         vec3 intersectionPoint = ray.origin + leastT * ray.direction;
-
-        // Calculate normal at the intersection point
         vec3 normal = normalize(intersectionPoint - spheres[closestSph].center);
-
         vec3 phongColor = phongShading(normal, intersectionPoint, spheres[closestSph].color, spheres[closestSph].shininess);
-
         vec3 phongColorNoSpec = phongShadingNoSpec(normal, intersectionPoint, spheres[closestSph].color);
 
         bool shadow = false;
-
         for (int i = 0; i < 7; i++) {
-            if (i == closestSph) 
-                continue;
+            if (i == closestSph) continue;
             float t = intersectSphere(intersectionPoint, normalize(uLightPosition - intersectionPoint), spheres[i]);
             if (t > 0.0) {
-                shadow = true; // Point is in shadow
+                shadow = true;
                 break;
             }
         }
 
         Ray reflRay;
-        reflRay.origin = intersectionPoint + 0.001*normal;
+        reflRay.origin = intersectionPoint + 0.001 * normal;
         reflRay.direction = normalize(reflect(ray.direction, normal));
 
-        //Calculate intersection for the reflected ray
-        leastT = 1e8; 
+        leastT = 1e8;
         closestSph = -1;
 
         for (int i = 0; i < 7; i++) {
             float t = intersectSphere(reflRay.origin, reflRay.direction, spheres[i]);
-            if (t > 0.0  && t < leastT) {
+            if (t > 0.0 && t < leastT) {
                 leastT = t;
                 closestSph = i;
             }
-        }        
+        }
 
-        vec3 reflColor = vec3(0.0,0.0,0.0);
-        vec3 reflColorNoSpec = vec3(0.0,0.0,0.0);
-        if(closestSph != -1)
-        {
+        vec3 reflColor = vec3(0.0, 0.0, 0.0);
+        vec3 reflColorNoSpec = vec3(0.0, 0.0, 0.0);
+        if (closestSph != -1) {
             intersectionPoint = reflRay.origin + leastT * reflRay.direction;
             normal = normalize(intersectionPoint - spheres[closestSph].center);
             reflColor = phongShading(normal, intersectionPoint, spheres[closestSph].color, spheres[closestSph].shininess);
             reflColorNoSpec = phongShadingNoSpec(normal, intersectionPoint, spheres[closestSph].color);
         }
 
-        if(choice == 1 || (choice == 3 && shadow == false))
+        if (choice == 1 || (choice == 3 && shadow == false)) {
             fragColor = vec4(phongColor, 1.0);
-        else if(choice == 2 || (choice == 4 && shadow == false))
-            fragColor = vec4(phongColor + 0.5*reflColor,1.0);
-        else if(choice == 3 && shadow == true)
-            fragColor = vec4(0.4*phongColorNoSpec,1.0);
-        else
-            fragColor = vec4(0.4*(phongColorNoSpec + 0.5*reflColorNoSpec),1.0);
+        } else if (choice == 2 || (choice == 4 && shadow == false)) {
+            fragColor = vec4(phongColor + 0.5 * reflColor, 1.0);
+        } else if (choice == 3 && shadow == true) {
+            fragColor = vec4(0.4 * phongColorNoSpec, 1.0);
+        } else {
+            fragColor = vec4(0.4 * (phongColorNoSpec + 0.5 * reflColorNoSpec), 1.0);
+        }
     }
 }`;
 
-function vertexShaderSetup(vertexShaderCode) {
-    shader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(shader, vertexShaderCode);
-    gl.compileShader(shader);
-    // Error check whether the shader is compiled correctly
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      alert(gl.getShaderInfoLog(shader));
-      return null;
-    }
-    return shader;
-  }
-  
-function fragmentShaderSetup(fragShaderCode) {
-    shader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(shader, fragShaderCode);
-    gl.compileShader(shader);
-    // Error check whether the shader is compiled correctly
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      alert(gl.getShaderInfoLog(shader));
-      return null;
-    }
-    return shader;
-  }
-  
-function initShaders(vertexShaderCode, fragShaderCode) {
-    shaderProgram = gl.createProgram();
-  
-    var vertexShader = vertexShaderSetup(vertexShaderCode);
-    var fragmentShader = fragmentShaderSetup(fragShaderCode);
-  
-    // attach the shaders
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-    //link the shader program
-    gl.linkProgram(shaderProgram);
-  
-    // check for compilation and linking status
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-      console.log(gl.getShaderInfoLog(vertexShader));
-      console.log(gl.getShaderInfoLog(fragmentShader));
-    }
-  
-    gl.useProgram(shaderProgram);
-  
-    return shaderProgram;
-  }
+function compileShader(type, source) {
+  const shader = context.createShader(type);
+  context.shaderSource(shader, source);
+  context.compileShader(shader);
 
-function initGL(canvas) {
-    try {
-      gl = canvas.getContext("webgl2"); // the graphics webgl2 context
-      gl.viewportWidth = canvas.width; // the width of the canvas
-      gl.viewportHeight = canvas.height; // the height
-    } catch (e) {}
-    if (!gl) {
-      alert("WebGL initialization failed");
-    }
+  if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
+    alert(context.getShaderInfoLog(shader));
+    return null;
   }
-
-function initSquareBuffer() {
-    sqBuf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, sqBuf);
-    const bufData = new Float32Array([
-        -1, 1, 0, 1, 1, 0, -1, -1, 0, -1, -1, 0, 1, 1, 0, 1, -1, 0,]);
-        
-    gl.bufferData(gl.ARRAY_BUFFER, bufData, gl.STATIC_DRAW);
+  return shader;
 }
 
-function drawScene() {
-    gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    
-    gl.bindBuffer(gl.ARRAY_BUFFER, sqBuf);
-    gl.vertexAttribPointer(aPositionLocation, 3, gl.FLOAT, false, 0, 0);
-    gl.uniform3fv(uLightPosLocation, lightPos);
-    gl.uniform1i(uChoiceLocation, choice);
-    gl.drawArrays(gl.TRIANGLES, 0, 9); 
-}
+function createProgram(vertexSrc, fragmentSrc) {
+  const program = context.createProgram();
+  const vShader = compileShader(context.VERTEX_SHADER, vertexSrc);
+  const fShader = compileShader(context.FRAGMENT_SHADER, fragmentSrc);
 
-function setChoice(ch) {
-    choice = ch;
-    drawScene();
-}
+  context.attachShader(program, vShader);
+  context.attachShader(program, fShader);
+  context.linkProgram(program);
 
-function lightSliderChanged() {
-    lightPos = [parseFloat(LightSlider.value),3.0,5.0];
-    drawScene();
+  if (!context.getProgramParameter(program, context.LINK_STATUS)) {
+    console.log(context.getShaderInfoLog(vShader));
+    console.log(context.getShaderInfoLog(fShader));
   }
 
-function webGLStart() {
-    canvas = document.getElementById("RayTracing");
-    initGL(canvas);
-    shaderProgram = initShaders(vertexShaderCode,fragShaderCode);
+  context.useProgram(program);
+  return program;
+}
 
-    aPositionLocation = gl.getAttribLocation(shaderProgram, "aPosition");
-    uLightPosLocation = gl.getUniformLocation(shaderProgram, "uLightPosition");
-    uChoiceLocation = gl.getUniformLocation(shaderProgram, "choice");
+function setupContext(canvas) {
+  try {
+    context = canvas.getContext("webgl2");
+    context.viewportWidth = canvas.width;
+    context.viewportHeight = canvas.height;
+  } catch (e) {}
 
-    gl.enableVertexAttribArray(aPositionLocation);
+  if (!context) {
+    alert("WebGL initialization failed");
+  }
+}
 
-    LightSlider = document.getElementById("LightSlider");
-    LightSlider.addEventListener("input",lightSliderChanged);
+function initGeometry() {
+  geometryBuffer = context.createBuffer();
+  context.bindBuffer(context.ARRAY_BUFFER, geometryBuffer);
+  const vertices = new Float32Array([-1, 1, 0, 1, 1, 0, -1, -1, 0, -1, -1, 0, 1, 1, 0, 1, -1, 0]);
+  context.bufferData(context.ARRAY_BUFFER, vertices, context.STATIC_DRAW);
+}
 
-    initSquareBuffer();
-    drawScene();
+function render() {
+  context.viewport(0, 0, context.viewportWidth, context.viewportHeight);
+  context.clearColor(0.0, 0.0, 0.0, 1.0);
+  context.clear(context.COLOR_BUFFER_BIT | context.DEPTH_BUFFER_BIT);
+
+  context.bindBuffer(context.ARRAY_BUFFER, geometryBuffer);
+  context.vertexAttribPointer(posAttr, 3, context.FLOAT, false, 0, 0);
+  context.uniform3fv(lightUniform, lightPosition);
+  context.uniform1i(modeUniform, renderMode);
+  context.drawArrays(context.TRIANGLES, 0, 6);
+}
+
+function updateMode(mode) {
+  renderMode = mode;
+  render();
+}
+
+function onLightUpdate() {
+  lightPosition = [parseFloat(lightSlider.value), 3.0, 5.0];
+  render();
+}
+
+function init() {
+  renderCanvas = document.getElementById("RayTracing");
+  setupContext(renderCanvas);
+
+  const program = createProgram(VERTEX_SRC, FRAGMENT_SRC);
+
+  posAttr = context.getAttribLocation(program, "aPosition");
+  lightUniform = context.getUniformLocation(program, "uLightPosition");
+  modeUniform = context.getUniformLocation(program, "choice");
+
+  context.enableVertexAttribArray(posAttr);
+
+  lightSlider = document.getElementById("LightSlider");
+  lightSlider.addEventListener("input", onLightUpdate);
+
+  initGeometry();
+  render();
 }
