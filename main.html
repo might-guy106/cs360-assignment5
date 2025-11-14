@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ray Tracing Visualization</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script type="text/javascript" src="main.js"></script>
+  </head>
+  <body onload="init();">
+    <div class="container">
+      <h1>Ray Tracing</h1>
+
+      <div class="canvas-wrapper">
+        <canvas id="RayTracing" width="500" height="500"></canvas>
+      </div>
+
+      <div class="mode-section">
+        <div class="mode-label">Shading Mode</div>
+        <div class="controls">
+          <button class="btn btn-mode1" onclick="updateMode(1)">Phong</button>
+          <button class="btn btn-mode2" onclick="updateMode(2)">Phong + Reflection</button>
+          <button class="btn btn-mode3" onclick="updateMode(3)">Phong + Shadow</button>
+          <button class="btn btn-mode4" onclick="updateMode(4)">Phong + Shadow + Reflection</button>
+        </div>
+      </div>
+
+      <div class="slider-section">
+        <label class="slider-label" for="LightSlider">Light Position</label>
+        <div class="slider-wrapper">
+          <input type="range" min="-10.0" max="10.0" step="0.1" value="-5.0" id="LightSlider" />
+        </div>
+      </div>
+
+      <div class="info">Interactive Ray Tracing with Dynamic Lighting and Shadows</div>
+    </div>
+  </body>
+</html>
