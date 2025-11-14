@@ -36,6 +36,7 @@ struct Ray {
 };
 
 vec3 cameraPos = vec3(0.0, 0.0, 1.0);
+float sphereScaleFactor = 1.0;
 
 float intersectSphere(vec3 rayOrg, vec3 rayDir, Sphere sphere) {
     vec3 v = rayOrg - sphere.center;
@@ -80,13 +81,13 @@ vec3 phongShadingNoSpec(vec3 normal, vec3 intPt, vec3 diffuseTerm) {
 
 void main() {
     Sphere spheres[7];
-    spheres[0] = Sphere(vec3(-0.2, -0.35, 0.1), 0.2, vec3(0.0, 0.76, 0.0), 10.0);
-    spheres[1] = Sphere(vec3(0.15, -0.3, 0.0), 0.2, vec3(0.0, 0.42, 0.23), 12.0);
-    spheres[2] = Sphere(vec3(0.3, 0.04, 0.0), 0.2, vec3(0.0, 0.58, 0.58), 20.0);
-    spheres[3] = Sphere(vec3(0.15, 0.38, -0.2), 0.22, vec3(0.0, 0.44, 0.73), 15.0);
-    spheres[4] = Sphere(vec3(-0.25, 0.7, -0.7), 0.28, vec3(0.0, 0.23, 0.73), 25.0);
-    spheres[5] = Sphere(vec3(-0.65, 0.45, -0.9), 0.28, vec3(0.3, 0.15, 0.6), 17.0);
-    spheres[6] = Sphere(vec3(-0.45, 0.08, -1.5), 0.4, vec3(0.46, 0.13, 0.46), 14.0);
+    spheres[0] = Sphere(vec3(-0.2, -0.35, 0.1), 0.2 * sphereScaleFactor, vec3(0.0, 0.76, 0.0), 10.0);
+    spheres[1] = Sphere(vec3(0.15, -0.3, 0.0), 0.2 * sphereScaleFactor, vec3(0.0, 0.42, 0.23), 12.0);
+    spheres[2] = Sphere(vec3(0.3, 0.04, 0.0), 0.2 * sphereScaleFactor, vec3(0.0, 0.58, 0.58), 20.0);
+    spheres[3] = Sphere(vec3(0.15, 0.38, -0.2), 0.22 * sphereScaleFactor, vec3(0.0, 0.44, 0.73), 15.0);
+    spheres[4] = Sphere(vec3(-0.25, 0.7, -0.7), 0.28 * sphereScaleFactor, vec3(0.0, 0.23, 0.73), 25.0);
+    spheres[5] = Sphere(vec3(-0.65, 0.45, -0.9), 0.28 * sphereScaleFactor, vec3(0.3, 0.15, 0.6), 17.0);
+    spheres[6] = Sphere(vec3(-0.45, 0.08, -1.5), 0.4 * sphereScaleFactor, vec3(0.46, 0.13, 0.46), 14.0);
 
     Ray ray;
     ray.origin = cameraPos;
